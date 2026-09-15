@@ -36,8 +36,9 @@ begin
   ]
   loop
     execute format('alter table public.%I enable row level security', t);
+    -- Policy names are identifiers, so %I (double-quoted), not %L.
     execute format(
-      'create policy %L on public.%I for all using (auth.uid() = user_id) with check (auth.uid() = user_id)',
+      'create policy %I on public.%I for all using (auth.uid() = user_id) with check (auth.uid() = user_id)',
       t || ': own rows', t
     );
   end loop;

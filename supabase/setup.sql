@@ -387,8 +387,9 @@ begin
   ]
   loop
     execute format('alter table public.%I enable row level security', t);
+    -- Policy names are identifiers, so %I (double-quoted), not %L.
     execute format(
-      'create policy %L on public.%I for all using (auth.uid() = user_id) with check (auth.uid() = user_id)',
+      'create policy %I on public.%I for all using (auth.uid() = user_id) with check (auth.uid() = user_id)',
       t || ': own rows', t
     );
   end loop;
@@ -593,6 +594,17 @@ create trigger on_auth_user_created
 insert into storage.buckets (id, name, public)
 values ('logos', 'logos', true), ('avatars', 'avatars', true)
 on conflict (id) do nothing;
+
+-- storage.objects outlives the public tables, so these policies survive a
+-- teardown of this schema. Dropping them first keeps the script re-runnable.
+drop policy if exists "logos: public read" on storage.objects;
+drop policy if exists "logos: owner writes" on storage.objects;
+drop policy if exists "logos: owner updates" on storage.objects;
+drop policy if exists "logos: owner deletes" on storage.objects;
+drop policy if exists "avatars: public read" on storage.objects;
+drop policy if exists "avatars: owner writes" on storage.objects;
+drop policy if exists "avatars: owner updates" on storage.objects;
+drop policy if exists "avatars: owner deletes" on storage.objects;
 
 -- Anyone may read; only the owner may write into their own folder.
 create policy "logos: public read"
