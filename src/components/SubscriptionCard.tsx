@@ -32,7 +32,7 @@ export function SubscriptionCard({
   onClone,
   onRenew,
 }: Props) {
-  const { formatPrice, mainCurrencyCode } = useAppData();
+  const { formatPrice, t } = useAppData();
   const [actionsOpen, setActionsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -46,20 +46,13 @@ export function SubscriptionCard({
   }, [actionsOpen]);
 
   const hasLogo = Boolean(subscription.logo);
-  const classes = [
-    'subscription',
-    subscription.inactive ? 'inactive' : '',
-    subscription.auto_renew ? '' : 'manual',
-  ]
+  const classes = ['subscription', subscription.inactive ? 'inactive' : '', subscription.auto_renew ? '' : 'manual']
     .filter(Boolean)
     .join(' ');
 
-  // The converted price is only worth showing alongside the original when the
-  // two actually differ, i.e. the subscription is not in the main currency.
-  const converted = subscription.converted_price;
-  const showConversion =
-    showOriginalPrice && subscription.currency_code !== mainCurrencyCode && converted !== subscription.price;
-
+  // Upstream only prints the original alongside once a conversion or a monthly
+  // calculation actually changed the figure being shown.
+  const showOriginal = showOriginalPrice && subscription.display_price !== subscription.price;
   const progress = Math.min(100, subscription.progress);
 
   function runAction(event: React.MouseEvent, action: () => void) {
@@ -98,12 +91,11 @@ export function SubscriptionCard({
               subscription.one_time
                 ? subscription.billing_cycle
                 : subscription.auto_renew
-                  ? 'Automatically renews'
-                  : 'Manual renewal'
+                  ? t('automatically_renews')
+                  : t('manual_renewal')
             }
           >
-            {!subscription.one_time &&
-              (subscription.auto_renew ? <IconAutomatic /> : <IconManual />)}
+            {!subscription.one_time && (subscription.auto_renew ? <IconAutomatic /> : <IconManual />)}
             {subscription.billing_cycle}
           </span>
 
@@ -111,9 +103,11 @@ export function SubscriptionCard({
 
           <span className="price">
             <span className="value">
-              {formatPrice(subscription.price, subscription.currency_code)}
-              {showConversion && (
-                <span className="original_price">({formatPrice(converted, mainCurrencyCode)})</span>
+              {formatPrice(subscription.display_price, subscription.display_currency_code)}
+              {showOriginal && (
+                <span className="original_price">
+                  ({formatPrice(subscription.price, subscription.currency_code)})
+                </span>
               )}
             </span>
           </span>
@@ -124,7 +118,7 @@ export function SubscriptionCard({
               <img
                 src={logoSrc(subscription.payment_method_icon) ?? ''}
                 alt=""
-                title={`Payment method: ${subscription.payment_method_name}`}
+                title={`${t('payment_method')}: ${subscription.payment_method_name}`}
               />
             )}
           </span>
@@ -136,36 +130,44 @@ export function SubscriptionCard({
               event.stopPropagation();
               setActionsOpen((value) => !value);
             }}
-            aria-label="Actions"
+            aria-label={t('sort', 'Actions')}
           >
             <i className="fas fa-ellipsis-v" />
           </button>
 
           <ul className="actions" style={actionsOpen ? { display: 'block' } : undefined}>
-            <li className="edit" title="Edit" onClick={(event) => runAction(event, () => onEdit(subscription))}>
+            <li
+              className="edit"
+              title={t('edit_subscription')}
+              onClick={(event) => runAction(event, () => onEdit(subscription))}
+            >
               <i className="fa-solid fa-pen-to-square" />
-              Edit
+              {t('edit_subscription')}
             </li>
             <li
               className="delete"
-              title="Delete"
+              title={t('delete')}
               onClick={(event) => runAction(event, () => onDelete(subscription))}
             >
               <i className="fa-solid fa-trash-can" />
-              Delete
+              {t('delete')}
             </li>
-            <li className="clone" title="Clone" onClick={(event) => runAction(event, () => onClone(subscription))}>
+            <li
+              className="clone"
+              title={t('clone')}
+              onClick={(event) => runAction(event, () => onClone(subscription))}
+            >
               <i className="fa-solid fa-copy" />
-              Clone
+              {t('clone')}
             </li>
             {!subscription.auto_renew && !subscription.one_time && (
               <li
                 className="renew"
-                title="Renew"
+                title={t('renew')}
                 onClick={(event) => runAction(event, () => onRenew(subscription))}
               >
                 <i className="fa-solid fa-rotate-right" />
-                Renew
+                {t('renew')}
               </li>
             )}
           </ul>

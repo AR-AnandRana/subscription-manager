@@ -43,6 +43,9 @@ export interface Stats {
   projectionDataPoints: DataPoint[];
   categoryCost: DataPoint[];
   memberCost: DataPoint[];
+  /** Monthly cost per payment method — what the split chart plots. */
+  paymentMethodCost: DataPoint[];
+  /** Active subscriptions per payment method, for the filter menu counts. */
   paymentMethodCount: DataPoint[];
   cycleDataPoints: DataPoint[];
   currencyDataPoints: DataPoint[];
@@ -90,6 +93,7 @@ export function computeStats({
   const memberCost = new Map<number, number>(household.map((m) => [m.id, 0]));
   const paymentCount = new Map<number, number>(paymentMethods.filter((p) => p.enabled).map((p) => [p.id, 0]));
 
+  const paymentCost = new Map<number, number>(paymentMethods.filter((p) => p.enabled).map((p) => [p.id, 0]));
   const cycleSpend = new Map<number, number>();
   const currencySpend = new Map<string, number>();
   const activeMonthlyPrices: number[] = [];
@@ -163,6 +167,12 @@ export function computeStats({
     }
 
     if (monthlyPrice > 0) {
+      if (subscription.payment_method_id != null && paymentCost.has(subscription.payment_method_id)) {
+        paymentCost.set(
+          subscription.payment_method_id,
+          paymentCost.get(subscription.payment_method_id)! + monthlyPrice,
+        );
+      }
       cycleSpend.set(cycle, (cycleSpend.get(cycle) ?? 0) + monthlyPrice);
       currencySpend.set(subscription.currency_code, (currencySpend.get(subscription.currency_code) ?? 0) + monthlyPrice);
     }
@@ -257,6 +267,7 @@ export function computeStats({
     projectionDataPoints,
     categoryCost: toSortedPoints(categoryCost, (id) => categoryById.get(id)?.name ?? ''),
     memberCost: toSortedPoints(memberCost, (id) => memberById.get(id)?.name ?? ''),
+    paymentMethodCost: toSortedPoints(paymentCost, (id) => paymentById.get(id)?.name ?? ''),
     paymentMethodCount: toSortedPoints(paymentCount, (id) => paymentById.get(id)?.name ?? ''),
     cycleDataPoints: buildCyclePoints(cycleSpend),
     currencyDataPoints: buildCurrencyPoints(currencySpend),

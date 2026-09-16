@@ -104,6 +104,104 @@ export interface NotificationSettings {
   period_summary_at_period_start: boolean;
 }
 
+/** Every notification channel row, keyed by its table name. */
+export interface NotificationChannels {
+  email_notifications: Record<string, unknown> & { enabled: boolean };
+  discord_notifications: Record<string, unknown> & { enabled: boolean };
+  telegram_notifications: Record<string, unknown> & { enabled: boolean };
+  gotify_notifications: Record<string, unknown> & { enabled: boolean };
+  ntfy_notifications: Record<string, unknown> & { enabled: boolean };
+  pushover_notifications: Record<string, unknown> & { enabled: boolean };
+  webhook_notifications: Record<string, unknown> & { enabled: boolean };
+  mattermost_notifications: Record<string, unknown> & { enabled: boolean };
+  pushplus_notifications: Record<string, unknown> & { enabled: boolean };
+  serverchan_notifications: Record<string, unknown> & { enabled: boolean };
+}
+
+export type ChannelTable = keyof NotificationChannels;
+
+export interface Fixer {
+  user_id: string;
+  api_key: string;
+  /** 0 = fixer.io, 1 = apilayer.com, as upstream stores it. */
+  provider: number;
+  usage_limit?: number | null;
+  usage_used?: number | null;
+  usage_updated_at?: string | null;
+}
+
+export interface GoogleSearch {
+  user_id: string;
+  api_key: string;
+}
+
+export interface AiSettings {
+  user_id: string;
+  type: string;
+  enabled: boolean;
+  api_key: string;
+  model: string;
+  url: string;
+  run_schedule: string;
+  last_successful_run: string | null;
+}
+
+export interface AiRecommendation {
+  id: number;
+  user_id: string;
+  type: string;
+  title: string;
+  description: string;
+  savings: string;
+  created_at: string;
+}
+
+export interface AdminSettings {
+  id: number;
+  registrations_open: boolean;
+  max_users: number;
+  require_email_verification: boolean;
+  login_disabled: boolean;
+  server_url: string;
+  update_notification: boolean;
+  latest_version: string;
+  smtp_address: string;
+  smtp_port: number;
+  smtp_username: string;
+  smtp_password: string;
+  from_email: string;
+  encryption: string;
+  local_webhook_notifications_allowlist: string;
+  allow_standard_users_local_webhooks: boolean;
+}
+
+export interface OauthSettings {
+  id: number;
+  enabled: boolean;
+  name: string;
+  client_id: string;
+  client_secret: string;
+  authorization_url: string;
+  token_url: string;
+  user_info_url: string;
+  redirect_url: string;
+  logout_url: string;
+  user_identifier_field: string;
+  scopes: string;
+  auth_style: string;
+  auto_create_user: boolean;
+  password_login_disabled: boolean;
+  require_email_verified: boolean;
+}
+
+export interface AdminUser {
+  id: string;
+  username: string;
+  email: string;
+  is_admin: boolean;
+  created_at: string;
+}
+
 /** A subscription joined with the lookup rows the UI needs to render it. */
 export interface SubscriptionView extends Subscription {
   currency_code: string;
@@ -116,6 +214,9 @@ export interface SubscriptionView extends Subscription {
   converted_price: number;
   /** Monthly-equivalent cost in the main currency. */
   monthly_price: number;
+  /** What the card shows, after the convert / monthly display settings. */
+  display_price: number;
+  display_currency_code: string;
   billing_cycle: string;
   one_time: boolean;
   progress: number;

@@ -1,24 +1,25 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useAppData } from '../AppDataProvider';
 import { showErrorMessage, showSuccessMessage } from '../Toast';
-import { fetchUserRow, upsertUserRow } from '@/lib/settings-actions';
+import { upsertUserRow } from '@/lib/settings-actions';
+import type { ChannelTable } from '@/lib/types';
 
 /**
- * Notification preferences and per-channel credentials.
+ * Notification preferences and per-channel credentials, from settings.php.
  *
- * Upstream also sends test messages from the server. Delivery needs a server
- * that can reach SMTP and the various webhook hosts, which a Supabase-backed
- * client cannot do on its own, so this screen stores the configuration and
- * leaves sending to a scheduled function — see NOTIFICATIONS.md.
+ * Each channel is a collapsed row that opens on click, one at a time, exactly
+ * as scripts/notifications.js does it. Sending happens server-side in the
+ * notification jobs; this screen stores the configuration.
  */
 export function NotificationSettings() {
-  const { notificationSettings, refresh } = useAppData();
+  const { notificationSettings, t, refresh } = useAppData();
   const [days, setDays] = useState(notificationSettings.days);
   const [periodSummary, setPeriodSummary] = useState(
     notificationSettings.period_summary_at_period_start,
   );
+  const [open, setOpen] = useState<ChannelTable | null>(null);
 
   async function saveGeneral() {
     try {
@@ -26,281 +27,399 @@ export function NotificationSettings() {
         days,
         period_summary_at_period_start: periodSummary,
       });
-      showSuccessMessage('Notification settings saved');
+      showSuccessMessage(t('notifications_settings_saved'));
       refresh();
     } catch {
-      showErrorMessage('Could not save the notification settings');
+      showErrorMessage(t('error_saving_notifications'));
     }
   }
 
   return (
     <section className="account-section">
       <header>
-        <h2>Notifications</h2>
+        <h2>{t('notifications')}</h2>
       </header>
+      <div className="account-notifications">
+        <section>
+          <label htmlFor="days">{t('notify_me')}:</label>
+          <div className="form-group-inline">
+            <select id="days" value={days} onChange={(event) => setDays(Number(event.target.value))}>
+              <option value={0}>{t('on_due_date')}</option>
+              <option value={1}>1 {t('day_before')}</option>
+              {[2, 3, 4, 5, 6, 7].map((value) => (
+                <option key={value} value={value}>
+                  {value} {t('day_before')}
+                </option>
+              ))}
+            </select>
+            <input type="submit" className="thin" value={t('save')} onClick={saveGeneral} />
+          </div>
+          <div className="form-group-inline">
+            <input
+              type="checkbox"
+              id="period_summary_at_period_start"
+              checked={periodSummary}
+              onChange={(event) => setPeriodSummary(event.target.checked)}
+            />
+            <label htmlFor="period_summary_at_period_start">
+              {t('send_period_summary_at_period_start')}
+            </label>
+          </div>
+        </section>
 
-      <div className="account-settings-list">
-        <div className="form-group-inline">
-          <label htmlFor="days">Notify me</label>
-          <select id="days" value={days} onChange={(event) => setDays(Number(event.target.value))}>
-            <option value={0}>On due date</option>
-            <option value={1}>1 day before</option>
-            {[2, 3, 4, 5, 6, 7, 10, 14, 30].map((value) => (
-              <option key={value} value={value}>
-                {value} days before
-              </option>
-            ))}
-          </select>
-          <input type="submit" className="thin" value="Save" onClick={saveGeneral} />
-        </div>
-
-        <div className="form-group-inline">
-          <input
-            type="checkbox"
-            id="period_summary_at_period_start"
-            checked={periodSummary}
-            onChange={(event) => setPeriodSummary(event.target.checked)}
+        {CHANNELS.map((channel) => (
+          <Channel
+            key={channel.table}
+            channel={channel}
+            open={open === channel.table}
+            onToggle={() => setOpen(open === channel.table ? null : channel.table)}
           />
-          <label htmlFor="period_summary_at_period_start">Send a period summary at the period start</label>
-        </div>
+        ))}
       </div>
-
-      <ChannelForm
-        table="email_notifications"
-        title="Email"
-        fields={[
-          { key: 'smtp_address', label: 'SMTP address' },
-          { key: 'smtp_port', label: 'Port', type: 'number' },
-          { key: 'smtp_username', label: 'SMTP username' },
-          { key: 'smtp_password', label: 'SMTP password', type: 'password' },
-          { key: 'from_email', label: 'From email' },
-          { key: 'other_emails', label: 'Also send to (comma separated)' },
-          {
-            key: 'encryption',
-            label: 'Encryption',
-            type: 'select',
-            options: [
-              { value: 'none', label: 'None' },
-              { value: 'tls', label: 'TLS' },
-              { value: 'ssl', label: 'SSL' },
-            ],
-          },
-        ]}
-      />
-
-      <ChannelForm
-        table="discord_notifications"
-        title="Discord"
-        fields={[
-          { key: 'webhook_url', label: 'Webhook URL' },
-          { key: 'bot_username', label: 'Bot username' },
-          { key: 'bot_avatar_url', label: 'Bot avatar URL' },
-        ]}
-      />
-
-      <ChannelForm
-        table="telegram_notifications"
-        title="Telegram"
-        fields={[
-          { key: 'bot_token', label: 'Bot token', type: 'password' },
-          { key: 'chat_id', label: 'Chat ID' },
-        ]}
-      />
-
-      <ChannelForm
-        table="gotify_notifications"
-        title="Gotify"
-        fields={[
-          { key: 'url', label: 'URL' },
-          { key: 'token', label: 'Token', type: 'password' },
-          { key: 'ignore_ssl', label: 'Ignore SSL errors', type: 'checkbox' },
-        ]}
-      />
-
-      <ChannelForm
-        table="ntfy_notifications"
-        title="Ntfy"
-        fields={[
-          { key: 'host', label: 'Host' },
-          { key: 'topic', label: 'Topic' },
-          { key: 'headers', label: 'Custom headers' },
-          { key: 'ignore_ssl', label: 'Ignore SSL errors', type: 'checkbox' },
-        ]}
-      />
-
-      <ChannelForm
-        table="pushover_notifications"
-        title="Pushover"
-        fields={[
-          { key: 'user_key', label: 'User key' },
-          { key: 'token', label: 'Token', type: 'password' },
-        ]}
-      />
-
-      <ChannelForm
-        table="mattermost_notifications"
-        title="Mattermost"
-        fields={[
-          { key: 'webhook_url', label: 'Webhook URL' },
-          { key: 'bot_username', label: 'Bot username' },
-          { key: 'bot_icon_emoji', label: 'Bot icon emoji' },
-        ]}
-      />
-
-      <ChannelForm
-        table="pushplus_notifications"
-        title="PushPlus"
-        fields={[{ key: 'token', label: 'Token', type: 'password' }]}
-      />
-
-      <ChannelForm
-        table="serverchan_notifications"
-        title="ServerChan"
-        fields={[{ key: 'sendkey', label: 'Send key', type: 'password' }]}
-      />
-
-      <ChannelForm
-        table="webhook_notifications"
-        title="Webhook"
-        fields={[
-          {
-            key: 'request_method',
-            label: 'Request method',
-            type: 'select',
-            options: [
-              { value: 'POST', label: 'POST' },
-              { value: 'GET', label: 'GET' },
-              { value: 'PUT', label: 'PUT' },
-            ],
-          },
-          { key: 'url', label: 'Webhook URL' },
-          { key: 'headers', label: 'Custom headers' },
-          { key: 'payload', label: 'Payment notification payload', type: 'textarea' },
-          { key: 'cancelation_payload', label: 'Cancellation notification payload', type: 'textarea' },
-          { key: 'ignore_ssl', label: 'Ignore SSL errors', type: 'checkbox' },
-        ]}
-      />
     </section>
   );
 }
 
 interface Field {
   key: string;
-  label: string;
-  type?: 'text' | 'password' | 'number' | 'checkbox' | 'select' | 'textarea';
+  labelKey?: string;
+  placeholderKey?: string;
+  placeholder?: string;
+  type?: 'text' | 'password' | 'number' | 'checkbox' | 'select' | 'textarea' | 'encryption';
   options?: { value: string; label: string }[];
+  className?: string;
 }
 
-type ChannelRow = Record<string, string | number | boolean | null>;
+interface ChannelSpec {
+  table: ChannelTable;
+  titleKey?: string;
+  title?: string;
+  icon: string;
+  fields: Field[];
+  notes?: string[];
+  variables?: boolean;
+}
 
-function ChannelForm({ table, title, fields }: { table: string; title: string; fields: Field[] }) {
-  const [row, setRow] = useState<ChannelRow | null>(null);
+/** Channels in the order settings.php renders them, with upstream's icons. */
+const CHANNELS: ChannelSpec[] = [
+  {
+    table: 'email_notifications',
+    titleKey: 'email',
+    icon: 'fa-solid fa-envelope',
+    fields: [
+      { key: 'smtp_address', placeholderKey: 'smtp_address' },
+      { key: 'smtp_port', placeholderKey: 'port', type: 'number', className: 'one-third' },
+      { key: 'encryption', type: 'encryption' },
+      { key: 'smtp_username', placeholderKey: 'smtp_username' },
+      { key: 'smtp_password', placeholderKey: 'smtp_password', type: 'password' },
+      { key: 'from_email', placeholderKey: 'from_email' },
+      { key: 'other_emails', labelKey: 'send_to_other_emails', placeholderKey: 'other_emails_placeholder' },
+    ],
+    notes: ['smtp_info'],
+  },
+  {
+    table: 'discord_notifications',
+    titleKey: 'discord',
+    icon: 'fa-brands fa-discord',
+    fields: [
+      { key: 'webhook_url', placeholderKey: 'webhook_url' },
+      { key: 'bot_username', placeholderKey: 'discord_bot_username' },
+      { key: 'bot_avatar_url', placeholderKey: 'discord_bot_avatar_url' },
+    ],
+  },
+  {
+    table: 'gotify_notifications',
+    titleKey: 'gotify',
+    icon: 'fa-solid fa-envelopes-bulk',
+    fields: [
+      { key: 'url', placeholderKey: 'url' },
+      { key: 'token', placeholderKey: 'token' },
+      { key: 'ignore_ssl', labelKey: 'ignore_ssl_errors', type: 'checkbox' },
+    ],
+  },
+  {
+    table: 'pushover_notifications',
+    titleKey: 'pushover',
+    icon: 'fa-brands fa-pinterest-p',
+    fields: [
+      { key: 'user_key', placeholderKey: 'pushover_user_key' },
+      { key: 'token', placeholderKey: 'token' },
+    ],
+  },
+  {
+    table: 'telegram_notifications',
+    titleKey: 'telegram',
+    icon: 'fa-solid fa-paper-plane',
+    fields: [
+      { key: 'bot_token', placeholderKey: 'telegram_bot_token' },
+      { key: 'chat_id', placeholderKey: 'telegram_chat_id' },
+    ],
+  },
+  {
+    table: 'pushplus_notifications',
+    titleKey: 'pushplus',
+    icon: 'fa-solid fa-bell',
+    fields: [{ key: 'token', placeholderKey: 'pushplus_token' }],
+  },
+  {
+    table: 'mattermost_notifications',
+    titleKey: 'mattermost',
+    icon: 'fa-solid fa-gauge-simple-high',
+    fields: [
+      { key: 'webhook_url', placeholderKey: 'mattermost_webhook_url' },
+      { key: 'bot_username', placeholderKey: 'mattermost_bot_username' },
+      { key: 'bot_icon_emoji', placeholderKey: 'mattermost_bot_icon_emoji' },
+    ],
+  },
+  {
+    table: 'ntfy_notifications',
+    title: 'Ntfy',
+    icon: 'fa-solid fa-terminal',
+    fields: [
+      { key: 'host', placeholderKey: 'host' },
+      { key: 'topic', placeholderKey: 'topic' },
+      { key: 'headers', placeholderKey: 'custom_headers', type: 'textarea' },
+      { key: 'ignore_ssl', labelKey: 'ignore_ssl_errors', type: 'checkbox' },
+    ],
+  },
+  {
+    table: 'serverchan_notifications',
+    titleKey: 'serverchan',
+    icon: 'fa-solid fa-code',
+    fields: [{ key: 'sendkey', placeholderKey: 'serverchan_sendkey' }],
+  },
+  {
+    table: 'webhook_notifications',
+    titleKey: 'webhook',
+    icon: 'fa-solid fa-bolt',
+    fields: [
+      {
+        key: 'request_method',
+        labelKey: 'request_method',
+        type: 'select',
+        options: [
+          { value: 'GET', label: 'GET' },
+          { value: 'POST', label: 'POST' },
+          { value: 'PUT', label: 'PUT' },
+        ],
+      },
+      { key: 'url', placeholderKey: 'webhook_url' },
+      { key: 'headers', placeholderKey: 'custom_headers', type: 'textarea' },
+      { key: 'payload', placeholderKey: 'payment_notifications_payload', type: 'textarea' },
+      { key: 'cancelation_payload', placeholderKey: 'cancelation_notification_payload', type: 'textarea' },
+      { key: 'ignore_ssl', labelKey: 'ignore_ssl_errors', type: 'checkbox' },
+    ],
+    variables: true,
+  },
+];
+
+function Channel({
+  channel,
+  open,
+  onToggle,
+}: {
+  channel: ChannelSpec;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const { channels, t, refresh } = useAppData();
+  const [row, setRow] = useState<Record<string, unknown>>(
+    channels[channel.table] as unknown as Record<string, unknown>,
+  );
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
 
-  useEffect(() => {
-    fetchUserRow<ChannelRow>(table).then((data) => setRow(data ?? { enabled: false }));
-  }, [table]);
+  const title = channel.title ?? t(channel.titleKey ?? '');
 
-  if (!row) return null;
-
-  function set(key: string, value: string | number | boolean) {
-    setRow((current) => (current ? { ...current, [key]: value } : current));
+  function set(key: string, value: unknown) {
+    setRow((current) => ({ ...current, [key]: value }));
   }
 
   async function save() {
-    if (!row) return;
     setSaving(true);
     try {
       const { user_id: _userId, ...values } = row;
-      await upsertUserRow(table, values);
-      showSuccessMessage(`${title} settings saved`);
+      await upsertUserRow(channel.table, values);
+      showSuccessMessage(t('notifications_settings_saved'));
+      refresh();
     } catch {
-      showErrorMessage(`Could not save the ${title} settings`);
+      showErrorMessage(t('error_saving_notifications'));
     } finally {
       setSaving(false);
     }
   }
 
+  async function test() {
+    setTesting(true);
+    try {
+      const response = await fetch('/api/notifications/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel: channel.table }),
+      });
+      const body = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? t('notification_failed'));
+      showSuccessMessage(t('notification_sent_successfuly'));
+    } catch (error) {
+      showErrorMessage(error instanceof Error ? error.message : t('notification_failed'));
+    } finally {
+      setTesting(false);
+    }
+  }
+
   return (
     <section className="account-notifications-section">
-      <header>
-        <h3>{title}</h3>
+      <header className="account-notification-section-header" onClick={onToggle}>
+        <h3>
+          <i className={channel.icon} />
+          {title}
+        </h3>
       </header>
-      <div className="form-group-inline">
-        <input
-          type="checkbox"
-          id={`${table}-enabled`}
-          checked={Boolean(row.enabled)}
-          onChange={(event) => set('enabled', event.target.checked)}
-        />
-        <label htmlFor={`${table}-enabled`}>Enabled</label>
-      </div>
+      <div
+        className={`account-notification-section-settings${open ? ' is-open' : ''}`}
+        data-type={channel.table}
+      >
+        <div className="form-group-inline">
+          <input
+            type="checkbox"
+            id={`${channel.table}-enabled`}
+            checked={Boolean(row.enabled)}
+            onChange={(event) => set('enabled', event.target.checked)}
+          />
+          <label htmlFor={`${channel.table}-enabled`} className="capitalize">
+            {t('enabled')}
+          </label>
+        </div>
 
-      {fields.map((field) => {
-        const id = `${table}-${field.key}`;
-        const value = row[field.key];
+        {channel.fields.map((field) => {
+          const id = `${channel.table}-${field.key}`;
+          const value = row[field.key];
+          const placeholder = field.placeholderKey ? t(field.placeholderKey) : field.placeholder;
 
-        if (field.type === 'checkbox') {
-          return (
-            <div className="form-group-inline" key={field.key}>
-              <input
-                type="checkbox"
-                id={id}
-                checked={Boolean(value)}
-                onChange={(event) => set(field.key, event.target.checked)}
-              />
-              <label htmlFor={id}>{field.label}</label>
-            </div>
-          );
-        }
-
-        if (field.type === 'select') {
-          return (
-            <div className="form-group-inline" key={field.key}>
-              <label htmlFor={id}>{field.label}</label>
-              <select id={id} value={String(value ?? '')} onChange={(event) => set(field.key, event.target.value)}>
-                {field.options?.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
+          if (field.type === 'encryption') {
+            return (
+              <div className="form-group-inline" key={field.key}>
+                {(['none', 'tls', 'ssl'] as const).map((option) => (
+                  <div key={option}>
+                    <input
+                      type="radio"
+                      name={`${channel.table}-encryption`}
+                      id={`${id}-${option}`}
+                      value={option}
+                      checked={(String(value) || 'tls') === option}
+                      onChange={() => set(field.key, option)}
+                    />
+                    <label htmlFor={`${id}-${option}`}>{option === 'none' ? t('none') : t(option)}</label>
+                  </div>
                 ))}
-              </select>
-            </div>
-          );
-        }
+              </div>
+            );
+          }
 
-        if (field.type === 'textarea') {
+          if (field.type === 'checkbox') {
+            return (
+              <div className="form-group-inline" key={field.key}>
+                <input
+                  type="checkbox"
+                  id={id}
+                  checked={Boolean(value)}
+                  onChange={(event) => set(field.key, event.target.checked)}
+                />
+                <label htmlFor={id}>{t(field.labelKey ?? '')}</label>
+              </div>
+            );
+          }
+
+          if (field.type === 'select') {
+            return (
+              <div key={field.key}>
+                <label htmlFor={id} className="capitalize">
+                  {t(field.labelKey ?? '')}:
+                </label>
+                <div className="form-group-inline">
+                  <select id={id} value={String(value ?? '')} onChange={(event) => set(field.key, event.target.value)}>
+                    {field.options?.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            );
+          }
+
+          if (field.type === 'textarea') {
+            return (
+              <div className="form-group-inline" key={field.key}>
+                <textarea
+                  id={id}
+                  className="thin"
+                  placeholder={placeholder}
+                  value={String(value ?? '')}
+                  onChange={(event) => set(field.key, event.target.value)}
+                />
+              </div>
+            );
+          }
+
           return (
-            <div className="form-group" key={field.key}>
-              <label htmlFor={id}>{field.label}</label>
-              <textarea
-                id={id}
-                className="thin"
-                value={String(value ?? '')}
-                onChange={(event) => set(field.key, event.target.value)}
-              />
+            <div key={field.key}>
+              {field.labelKey && <label htmlFor={id}>{t(field.labelKey)}</label>}
+              <div className="form-group-inline">
+                <input
+                  type={field.type === 'password' ? 'password' : 'text'}
+                  id={id}
+                  autoComplete="off"
+                  className={field.className}
+                  placeholder={placeholder}
+                  value={String(value ?? '')}
+                  onChange={(event) =>
+                    set(field.key, field.type === 'number' ? Number(event.target.value) : event.target.value)
+                  }
+                />
+              </div>
             </div>
           );
-        }
+        })}
 
-        return (
-          <div className="form-group-inline" key={field.key}>
-            <label htmlFor={id}>{field.label}</label>
-            <input
-              type={field.type ?? 'text'}
-              id={id}
-              autoComplete="off"
-              value={String(value ?? '')}
-              onChange={(event) =>
-                set(field.key, field.type === 'number' ? Number(event.target.value) : event.target.value)
-              }
-            />
+        <div className="buttons">
+          <input
+            type="button"
+            className="secondary-button thin mobile-grow"
+            value={t('test')}
+            disabled={testing}
+            onClick={test}
+          />
+          <input
+            type="submit"
+            className="thin mobile-grow"
+            value={t('save')}
+            disabled={saving}
+            onClick={save}
+          />
+        </div>
+
+        {channel.notes && (
+          <div className="settings-notes">
+            {channel.notes.map((note) => (
+              <p key={note}>
+                <i className="fa-solid fa-circle-info" /> {t(note)}
+              </p>
+            ))}
           </div>
-        );
-      })}
+        )}
 
-      <div className="buttons">
-        <input type="submit" className="thin" value={saving ? 'Saving…' : 'Save'} onClick={save} disabled={saving} />
+        {channel.variables && (
+          <div className="settings-notes">
+            <p>
+              <i className="fa-solid fa-circle-info" /> {t('variables_available')}: {'{{days_until}}'},{' '}
+              {'{{subscription_name}}'}, {'{{subscription_price}}'}, {'{{subscription_currency}}'},{' '}
+              {'{{subscription_category}}'}, {'{{subscription_date}}'}, {'{{subscription_payer}}'},{' '}
+              {'{{subscription_days_until_payment}}'}, {'{{subscription_notes}}'}, {'{{subscription_url}}'}
+            </p>
+          </div>
+        )}
       </div>
     </section>
   );

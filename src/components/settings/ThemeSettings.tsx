@@ -8,8 +8,8 @@ import { COLOR_THEMES, type ColorTheme, type Theme } from '@/lib/constants';
 
 const COLOR_THEME_IDS: Record<ColorTheme, string | null> = {
   blue: null, // the base theme.css palette; no override file
-  red: 'red-theme',
   green: 'green-theme',
+  red: 'red-theme',
   yellow: 'yellow-theme',
   purple: 'purple-theme',
 };
@@ -33,8 +33,9 @@ function applyColorTheme(colorTheme: ColorTheme) {
   }
 }
 
+/** Theme settings, from settings.php: theme, colours, custom colours, custom CSS. */
 export function ThemeSettings() {
-  const { settings, refresh } = useAppData();
+  const { settings, t, refresh } = useAppData();
   const [theme, setTheme] = useState<Theme>(settings.theme);
   const [colorTheme, setColorTheme] = useState<ColorTheme>(settings.color_theme);
   const [mainColor, setMainColor] = useState(settings.main_color ?? '#FFFFFF');
@@ -66,16 +67,20 @@ export function ThemeSettings() {
   }
 
   async function saveCustomColors() {
+    if (mainColor.toLowerCase() === accentColor.toLowerCase()) {
+      showErrorMessage(t('main_accent_color_error'));
+      return;
+    }
     try {
       await updateSettings({ main_color: mainColor, accent_color: accentColor, hover_color: hoverColor });
       localStorage.setItem(
         'wallos-custom-colors',
         JSON.stringify({ main_color: mainColor, accent_color: accentColor, hover_color: hoverColor }),
       );
-      showSuccessMessage('Custom colors saved. Reload to apply.');
+      showSuccessMessage(t('save'));
       refresh();
     } catch {
-      showErrorMessage('Could not save the custom colors');
+      showErrorMessage(t('error'));
     }
   }
 
@@ -87,10 +92,10 @@ export function ThemeSettings() {
       setMainColor('#FFFFFF');
       setAccentColor('#FFFFFF');
       setHoverColor('#FFFFFF');
-      showSuccessMessage('Custom colors reset');
+      showSuccessMessage(t('reset'));
       refresh();
     } catch {
-      showErrorMessage('Could not reset the custom colors');
+      showErrorMessage(t('error'));
     }
   }
 
@@ -105,21 +110,21 @@ export function ThemeSettings() {
         document.head.appendChild(style);
       }
       style.textContent = customCss;
-      showSuccessMessage('Custom CSS saved');
+      showSuccessMessage(t('save'));
       refresh();
     } catch {
-      showErrorMessage('Could not save the custom CSS');
+      showErrorMessage(t('error'));
     }
   }
 
   return (
     <section className="account-section">
       <header>
-        <h2>Theme Settings</h2>
+        <h2>{t('theme_settings')}</h2>
       </header>
       <div className="account-settings-theme">
         <div>
-          <h3>Theme</h3>
+          <h3>{t('theme')}</h3>
           <div className="form-group-inline wrap">
             <button
               type="button"
@@ -127,7 +132,7 @@ export function ThemeSettings() {
               onClick={() => chooseTheme('light')}
               id="theme-light"
             >
-              <i className="fa-solid fa-sun" /> Light Theme
+              <i className="fa-solid fa-sun" /> {t('light_theme')}
             </button>
             <button
               type="button"
@@ -135,7 +140,7 @@ export function ThemeSettings() {
               onClick={() => chooseTheme('dark')}
               id="theme-dark"
             >
-              <i className="fa-solid fa-moon" /> Dark Theme
+              <i className="fa-solid fa-moon" /> {t('dark_theme')}
             </button>
             <button
               type="button"
@@ -143,14 +148,14 @@ export function ThemeSettings() {
               onClick={() => chooseTheme('automatic')}
               id="theme-automatic"
             >
-              <i className="fa-solid fa-circle-half-stroke" /> Automatic
+              <i className="fa-solid fa-circle-half-stroke" /> {t('automatic')}
             </button>
           </div>
         </div>
 
         <div>
           <form className="theme-selector" onSubmit={(event) => event.preventDefault()}>
-            <h3>Colors</h3>
+            <h3>{t('colors')}</h3>
             <div className="form-group-inline wrap">
               {COLOR_THEMES.map((name) => (
                 <div className="theme" key={name}>
@@ -177,7 +182,7 @@ export function ThemeSettings() {
         </div>
 
         <div>
-          <h3>Custom Colors</h3>
+          <h3>{t('custom_colors')}</h3>
           <div className="custom-colors wrap">
             <div className="form-group-inline mobile-grow color-picker-button">
               <input
@@ -187,7 +192,7 @@ export function ThemeSettings() {
                 onChange={(event) => setMainColor(event.target.value)}
                 className="color-picker fa-solid fa-eye-dropper"
               />
-              <label htmlFor="mainColor">Main Color</label>
+              <label htmlFor="mainColor">{t('main_color')}</label>
             </div>
             <div className="form-group-inline mobile-grow color-picker-button">
               <input
@@ -197,7 +202,7 @@ export function ThemeSettings() {
                 onChange={(event) => setAccentColor(event.target.value)}
                 className="color-picker fa-solid fa-eye-dropper"
               />
-              <label htmlFor="accentColor">Accent Color</label>
+              <label htmlFor="accentColor">{t('accent_color')}</label>
             </div>
             <div className="form-group-inline mobile-grow color-picker-button">
               <input
@@ -207,20 +212,20 @@ export function ThemeSettings() {
                 onChange={(event) => setHoverColor(event.target.value)}
                 className="color-picker fa-solid fa-eye-dropper"
               />
-              <label htmlFor="hoverColor">Hover Color</label>
+              <label htmlFor="hoverColor">{t('hover_color')}</label>
             </div>
           </div>
           <div className="custom-colors wrap">
             <input
               type="button"
-              value="Reset custom colors"
+              value={t('reset_custom_colors')}
               onClick={resetCustomColors}
               className="secondary-button thin mobile-grow"
               id="reset-colors"
             />
             <input
               type="button"
-              value="Save custom colors"
+              value={t('save_custom_colors')}
               onClick={saveCustomColors}
               className="buton thin mobile-grow"
               id="save-colors"
@@ -229,13 +234,13 @@ export function ThemeSettings() {
         </div>
 
         <div>
-          <h3>Custom CSS</h3>
+          <h3>{t('custom_css')}</h3>
           <div className="form-group">
             <div className="form-group-inline">
               <textarea
                 name="customCss"
                 id="customCss"
-                placeholder="Custom CSS"
+                placeholder={t('custom_css')}
                 className="thin"
                 value={customCss}
                 onChange={(event) => setCustomCss(event.target.value)}
@@ -244,7 +249,7 @@ export function ThemeSettings() {
             <div className="form-group-inline">
               <input
                 type="button"
-                value="Save custom CSS"
+                value={t('save_custom_css')}
                 onClick={saveCustomCss}
                 className="buton thin mobile-grow"
                 id="save-css"

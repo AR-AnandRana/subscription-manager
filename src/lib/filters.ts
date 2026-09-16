@@ -6,6 +6,8 @@
 import { CYCLE_ONE_TIME } from './constants';
 import type { SubscriptionView } from './types';
 
+type Translate = (key: string, fallback?: string) => string;
+
 export interface Filters {
   members: number[];
   categories: number[];
@@ -97,7 +99,8 @@ export function applySort(
       case 'renewal_type':
         return Number(b.auto_renew) - Number(a.auto_renew) || a.name.localeCompare(b.name);
       case 'alphanumeric':
-        return a.name.localeCompare(b.name, undefined, { numeric: true });
+        // Upstream sorts these with strnatcmp, so "Item 10" follows "Item 9".
+        return a.name.toLowerCase().localeCompare(b.name.toLowerCase(), undefined, { numeric: true });
       case 'name':
       default:
         return a.name.localeCompare(b.name);
@@ -122,9 +125,10 @@ export function groupHeadingFor(
   subscription: SubscriptionView,
   previous: SubscriptionView | undefined,
   sort: string,
+  t: Translate = (key) => key,
 ): string | null {
   if (subscription.one_time && (!previous || !previous.one_time)) {
-    return 'Lifetime purchases';
+    return t('lifetime_purchases');
   }
   if (subscription.one_time) return null;
 
@@ -132,7 +136,7 @@ export function groupHeadingFor(
     case 'category_id':
       return previous?.category_name === subscription.category_name
         ? null
-        : subscription.category_name || 'No category';
+        : subscription.category_name || t('no_category');
     case 'payer_user_id':
       return previous?.payer_name === subscription.payer_name ? null : subscription.payer_name;
     case 'payment_method_id':

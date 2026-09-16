@@ -1,18 +1,19 @@
 'use client';
 
-import { useDraftList } from '@/lib/browser-state';
 import { useAppData } from '../AppDataProvider';
+import { useDraftList } from '@/lib/browser-state';
 import { showErrorMessage, showSuccessMessage } from '../Toast';
-import {
-  countSubscriptionsUsing,
-  deleteRow,
-  insertOwned,
-  updateProfile,
-  updateRow,
-} from '@/lib/settings-actions';
+import { countSubscriptionsUsing, deleteRow, insertOwned, updateRow } from '@/lib/settings-actions';
 
+/**
+ * Currencies, from settings.php: symbol, name and code per row.
+ *
+ * The code is locked on a currency that cannot be deleted — the main one, or one
+ * a subscription still uses — because changing it would silently reprice those
+ * subscriptions.
+ */
 export function CurrencySettings() {
-  const { currencies, profile, refresh } = useAppData();
+  const { currencies, profile, lastExchangeUpdate, t, refresh } = useAppData();
   const [drafts, setDrafts] = useDraftList(currencies);
 
   async function save(id: number) {
@@ -23,160 +24,160 @@ export function CurrencySettings() {
         name: currency.name,
         symbol: currency.symbol,
         code: currency.code,
-        rate: Number(currency.rate) || 1,
       });
-      showSuccessMessage('Currency saved');
+      showSuccessMessage(`${currency.name} ${t('currency_saved')}`);
       refresh();
     } catch {
-      showErrorMessage('Could not save the currency');
+      showErrorMessage(t('failed_to_store_currency'));
     }
   }
 
   async function remove(id: number) {
-    if (id === profile.main_currency) {
-      showErrorMessage('The main currency cannot be deleted');
-      return;
-    }
-    const inUse = await countSubscriptionsUsing('currency_id', id);
-    if (inUse > 0) {
-      showErrorMessage('This currency is in use and cannot be deleted');
-      return;
-    }
     try {
       await deleteRow('currencies', id);
-      showSuccessMessage('Currency deleted');
+      showSuccessMessage(t('currency_removed'));
       refresh();
     } catch {
-      showErrorMessage('Could not delete the currency');
+      showErrorMessage(t('failed_to_remove_currency'));
     }
   }
 
   async function add() {
     try {
-      await insertOwned('currencies', { name: 'New currency', symbol: '', code: 'USD', rate: 1 });
+      await insertOwned('currencies', { name: 'Currency', symbol: '$', code: 'USD', rate: 1 });
       refresh();
     } catch {
-      showErrorMessage('Could not add the currency');
+      showErrorMessage(t('error_adding_currency'));
     }
   }
 
-  async function setMainCurrency(id: number) {
-    try {
-      await updateProfile({ main_currency: id });
-      showSuccessMessage('Main currency updated');
-      refresh();
-    } catch {
-      showErrorMessage('Could not set the main currency');
-    }
+  function edit(id: number, field: 'name' | 'symbol' | 'code', value: string) {
+    setDrafts((current) =>
+      current.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
+    );
   }
 
   return (
     <section className="account-section">
       <header>
-        <h2>Currencies</h2>
+        <h2>{t('currencies')}</h2>
       </header>
-
-      <div className="form-group-inline">
-        <label htmlFor="main_currency">Main currency</label>
-        <select
-          id="main_currency"
-          value={profile.main_currency ?? ''}
-          onChange={(event) => setMainCurrency(Number(event.target.value))}
-        >
-          {currencies.map((currency) => (
-            <option key={currency.id} value={currency.id}>
-              {currency.name} ({currency.code})
-            </option>
+      <div className="account-currencies">
+        <div id="currencies">
+          {drafts.map((currency) => (
+            <CurrencyRow
+              key={currency.id}
+              currency={currency}
+              isMain={currency.id === profile.main_currency}
+              onEdit={edit}
+              onSave={save}
+              onRemove={remove}
+            />
           ))}
-        </select>
-      </div>
-
-      <div id="currencies">
-        {drafts.map((currency) => (
-          <div className="form-group-inline" data-currencyid={currency.id} key={currency.id}>
-            <input
-              type="text"
-              autoComplete="off"
-              value={currency.name}
-              onChange={(event) =>
-                setDrafts((current) =>
-                  current.map((item) =>
-                    item.id === currency.id ? { ...item, name: event.target.value } : item,
-                  ),
-                )
-              }
-              placeholder="Name"
-            />
-            <input
-              type="text"
-              autoComplete="off"
-              value={currency.symbol}
-              onChange={(event) =>
-                setDrafts((current) =>
-                  current.map((item) =>
-                    item.id === currency.id ? { ...item, symbol: event.target.value } : item,
-                  ),
-                )
-              }
-              placeholder="Symbol"
-            />
-            <input
-              type="text"
-              autoComplete="off"
-              value={currency.code}
-              onChange={(event) =>
-                setDrafts((current) =>
-                  current.map((item) =>
-                    item.id === currency.id ? { ...item, code: event.target.value.toUpperCase() } : item,
-                  ),
-                )
-              }
-              placeholder="Code"
-            />
-            <input
-              type="number"
-              step="0.0001"
-              autoComplete="off"
-              value={String(currency.rate)}
-              onChange={(event) =>
-                setDrafts((current) =>
-                  current.map((item) =>
-                    item.id === currency.id ? { ...item, rate: Number(event.target.value) } : item,
-                  ),
-                )
-              }
-              placeholder="Rate"
-            />
-            <button className="image-button medium" onClick={() => save(currency.id)} title="Save currency">
-              <i className="fa-solid fa-check" />
-            </button>
-            {currency.id === profile.main_currency ? (
-              <button className="image-button medium disabled" title="The main currency cannot be deleted">
-                <i className="fa-solid fa-trash-can" />
-              </button>
-            ) : (
-              <button
-                className="image-button medium"
-                onClick={() => remove(currency.id)}
-                title="Delete currency"
-              >
-                <i className="fa-solid fa-trash-can" />
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <div className="buttons">
-        <input type="submit" value="Add" id="addCurrency" onClick={add} className="thin mobile-grow" />
-      </div>
-      <div className="settings-notes">
-        <p>
-          <i className="fa-solid fa-circle-info" /> Rates are expressed relative to your main currency: a
-          price is divided by its currency&apos;s rate to convert it. A rate of 1 leaves the price
-          unchanged.
-        </p>
+        </div>
+        <div className="buttons">
+          <input
+            type="submit"
+            value={t('add')}
+            id="addCurrency"
+            onClick={add}
+            className="thin mobile-grow"
+          />
+        </div>
+        <div className="settings-notes">
+          <p>
+            <i className="fa-solid fa-circle-info" /> {t('exchange_update')}{' '}
+            <span>{lastExchangeUpdate ?? '—'}</span>
+          </p>
+          <p>
+            <i className="fa-solid fa-circle-info" /> {t('currency_info')}{' '}
+            <span>
+              fixer.io
+              <a href="https://fixer.io/symbols" target="_blank" title="Currency codes" rel="noreferrer">
+                <i className="fa-solid fa-arrow-up-right-from-square" />
+              </a>
+            </span>
+          </p>
+          <p>{t('currency_performance')}</p>
+        </div>
       </div>
     </section>
+  );
+}
+
+function CurrencyRow({
+  currency,
+  isMain,
+  onEdit,
+  onSave,
+  onRemove,
+}: {
+  currency: { id: number; name: string; symbol: string; code: string };
+  isMain: boolean;
+  onEdit: (id: number, field: 'name' | 'symbol' | 'code', value: string) => void;
+  onSave: (id: number) => void;
+  onRemove: (id: number) => void;
+}) {
+  const { t } = useAppData();
+
+  async function tryRemove() {
+    if (isMain) {
+      showErrorMessage(t('currency_is_main'));
+      return;
+    }
+    const inUse = await countSubscriptionsUsing('currency_id', currency.id);
+    if (inUse > 0) {
+      showErrorMessage(t('currency_in_use'));
+      return;
+    }
+    onRemove(currency.id);
+  }
+
+  return (
+    <div className="form-group-inline" data-currencyid={currency.id}>
+      <input
+        type="text"
+        className="short"
+        name="symbol"
+        autoComplete="off"
+        value={currency.symbol}
+        placeholder="$"
+        onChange={(event) => onEdit(currency.id, 'symbol', event.target.value)}
+      />
+      <input
+        type="text"
+        name="currency"
+        autoComplete="off"
+        value={currency.name}
+        placeholder="Currency Name"
+        onChange={(event) => onEdit(currency.id, 'name', event.target.value)}
+      />
+      <input
+        type="text"
+        name="code"
+        autoComplete="off"
+        value={currency.code}
+        placeholder="Currency Code"
+        disabled={isMain}
+        onChange={(event) => onEdit(currency.id, 'code', event.target.value.toUpperCase())}
+      />
+      <button
+        className="image-button medium"
+        onClick={() => onSave(currency.id)}
+        name="save"
+        title={t('save_currency')}
+      >
+        <i className="fa-solid fa-check" />
+      </button>
+      {isMain ? (
+        <button className="image-button medium disabled" title={t('cant_delete_main_currency')}>
+          <i className="fa-solid fa-trash-can" />
+        </button>
+      ) : (
+        <button className="image-button medium" onClick={tryRemove} title={t('delete_currency')}>
+          <i className="fa-solid fa-trash-can" />
+        </button>
+      )}
+    </div>
   );
 }

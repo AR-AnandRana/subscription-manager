@@ -2,11 +2,12 @@ import type { Metadata, Viewport } from 'next';
 import { redirect } from 'next/navigation';
 import { ThemeScript } from '@/components/ThemeScript';
 import { Stylesheet } from '@/components/Stylesheet';
+import { ThemeSync } from '@/components/ThemeSync';
 import { Header } from '@/components/Header';
 import { AppDataProvider } from '@/components/AppDataProvider';
-import { ThemeSync } from '@/components/ThemeSync';
 import { ToastHost } from '@/components/Toast';
 import { loadAppData } from '@/lib/data';
+import { textDirection } from '@/lib/i18n';
 import '../globals.css';
 
 export const metadata: Metadata = {
@@ -36,8 +37,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const data = await loadAppData();
   if (!data) redirect('/login');
 
+  // Upstream puts the language direction on <html> and the same class on <body>,
+  // which the stylesheet's `.rtl` rules key off.
+  const direction = textDirection(data.profile.language);
+  const bodyClasses = [direction, data.settings.mobile_nav ? 'mobile-navigation' : '']
+    .filter(Boolean)
+    .join(' ');
+
   return (
-    <html lang="en" dir="ltr" suppressHydrationWarning>
+    <html lang={data.profile.language} dir={direction} suppressHydrationWarning>
       <head>
         <Stylesheet href="/styles/theme.css" />
         <Stylesheet href="/styles/styles.css" />
@@ -51,7 +59,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <Stylesheet href="/styles/brands.css" />
         <ThemeScript />
       </head>
-      <body suppressHydrationWarning className={data.settings.mobile_nav ? 'mobile-navigation' : ''}>
+      <body suppressHydrationWarning className={bodyClasses}>
         <AppDataProvider value={data}>
           <ThemeSync />
           <Header />

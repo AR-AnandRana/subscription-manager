@@ -1,19 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-
-const SORT_OPTIONS = [
-  { value: 'name', label: 'Name' },
-  { value: 'id', label: 'Last added' },
-  { value: 'price', label: 'Price' },
-  { value: 'next_payment', label: 'Next payment' },
-  { value: 'payer_user_id', label: 'Member' },
-  { value: 'category_id', label: 'Category' },
-  { value: 'payment_method_id', label: 'Payment method' },
-  { value: 'inactive', label: 'State', needsDisabled: true },
-  { value: 'alphanumeric', label: 'Alphanumeric' },
-  { value: 'renewal_type', label: 'Renewal type' },
-] as const;
+import { useAppData } from './AppDataProvider';
+import { SORT_OPTIONS } from '@/lib/constants';
 
 interface Props {
   sort: string;
@@ -23,6 +12,7 @@ interface Props {
 
 /** Sort dropdown, mirroring includes/sort_options.php. */
 export function SortMenu({ sort, onChange, hideDisabled }: Props) {
+  const { t } = useAppData();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -40,13 +30,13 @@ export function SortMenu({ sort, onChange, hideDisabled }: Props) {
       <button
         className="button secondary-button"
         id="sort-button"
-        title="Sort"
+        title={t('sort')}
         onClick={() => setOpen((value) => !value)}
       >
         <i className="fa-solid fa-arrow-down-wide-short" />
       </button>
 
-      <div className="sort-options" id="sort-options" style={open ? { display: 'block' } : undefined}>
+      <div className={`sort-options${open ? ' is-open' : ''}`} id="sort-options">
         <ul>
           {SORT_OPTIONS.filter(
             (option) => !('needsDisabled' in option && option.needsDisabled && hideDisabled),
@@ -60,7 +50,7 @@ export function SortMenu({ sort, onChange, hideDisabled }: Props) {
                 setOpen(false);
               }}
             >
-              {option.label}
+              {t(option.labelKey)}
             </li>
           ))}
         </ul>

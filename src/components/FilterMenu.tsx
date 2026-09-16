@@ -20,7 +20,7 @@ interface Props {
  * separate set of "menu counts".
  */
 export function FilterMenu({ filters, onChange, subscriptions, hideDisabled }: Props) {
-  const { categories, paymentMethods, household } = useAppData();
+  const { categories, paymentMethods, household, t } = useAppData();
   const [open, setOpen] = useState(false);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -55,22 +55,17 @@ export function FilterMenu({ filters, onChange, subscriptions, hideDisabled }: P
       <button
         className="button secondary-button"
         id="filtermenu-button"
-        title="Filter"
+        title={t('filter')}
         onClick={() => setOpen((value) => !value)}
       >
         <i className="fa-solid fa-filter" />
       </button>
 
-      <div className="filtermenu-content" style={open ? { display: 'block' } : undefined}>
+      <div className={`filtermenu-content${open ? ' is-open' : ''}`}>
         {household.length > 1 && (
-          <Submenu
-            id="member"
-            title="Member"
-            openSubmenu={openSubmenu}
-            setOpenSubmenu={setOpenSubmenu}
-          >
+          <Submenu id="member" title={t('member')} openSubmenu={openSubmenu} setOpenSubmenu={setOpenSubmenu}>
             {household
-              .filter((member) => (memberCounts.get(member.id) ?? 0) > 0)
+              .filter((member) => (memberCounts.get(member.id) ?? 0) > 0 || isSelected('members', member.id))
               .map((member) => (
                 <div
                   key={member.id}
@@ -84,21 +79,19 @@ export function FilterMenu({ filters, onChange, subscriptions, hideDisabled }: P
         )}
 
         {categories.length > 1 && (
-          <Submenu
-            id="category"
-            title="Category"
-            openSubmenu={openSubmenu}
-            setOpenSubmenu={setOpenSubmenu}
-          >
+          <Submenu id="category" title={t('category')} openSubmenu={openSubmenu} setOpenSubmenu={setOpenSubmenu}>
             {categories
-              .filter((category) => (categoryCounts.get(category.id) ?? 0) > 0)
+              .filter(
+                (category) =>
+                  (categoryCounts.get(category.id) ?? 0) > 0 || isSelected('categories', category.id),
+              )
               .map((category) => (
                 <div
                   key={category.id}
                   className={`filter-item ${isSelected('categories', category.id) ? 'selected' : ''}`}
                   onClick={() => toggle('categories', category.id)}
                 >
-                  {category.name}
+                  {category.name === 'No category' ? t('no_category') : category.name}
                 </div>
               ))}
           </Submenu>
@@ -107,12 +100,12 @@ export function FilterMenu({ filters, onChange, subscriptions, hideDisabled }: P
         {paymentMethods.length > 1 && (
           <Submenu
             id="payment"
-            title="Payment Method"
+            title={t('payment_method')}
             openSubmenu={openSubmenu}
             setOpenSubmenu={setOpenSubmenu}
           >
             {paymentMethods
-              .filter((method) => (paymentCounts.get(method.id) ?? 0) > 0)
+              .filter((method) => (paymentCounts.get(method.id) ?? 0) > 0 || isSelected('payments', method.id))
               .map((method) => (
                 <div
                   key={method.id}
@@ -126,32 +119,32 @@ export function FilterMenu({ filters, onChange, subscriptions, hideDisabled }: P
         )}
 
         {!hideDisabled && (
-          <Submenu id="state" title="State" openSubmenu={openSubmenu} setOpenSubmenu={setOpenSubmenu}>
+          <Submenu id="state" title={t('state')} openSubmenu={openSubmenu} setOpenSubmenu={setOpenSubmenu}>
             <div
               className={`filter-item capitalize ${isSelected('states', 0) ? 'selected' : ''}`}
               onClick={() => toggle('states', 0)}
             >
-              enabled
+              {t('enabled')}
             </div>
             <div
               className={`filter-item capitalize ${isSelected('states', 1) ? 'selected' : ''}`}
               onClick={() => toggle('states', 1)}
             >
-              disabled
+              {t('disabled')}
             </div>
           </Submenu>
         )}
 
         <Submenu
           id="renewal_type"
-          title="Renewal Type"
+          title={t('renewal_type')}
           openSubmenu={openSubmenu}
           setOpenSubmenu={setOpenSubmenu}
         >
           {[
-            { value: '1', label: 'auto renewal' },
-            { value: '0', label: 'manual renewal' },
-            { value: 'onetime', label: 'One-time' },
+            { value: '1', label: t('auto_renewal') },
+            { value: '0', label: t('manual_renewal') },
+            { value: 'onetime', label: t('One-time') },
           ].map(({ value, label }) => (
             <div
               key={value}
@@ -165,17 +158,21 @@ export function FilterMenu({ filters, onChange, subscriptions, hideDisabled }: P
 
         <Submenu
           id="notification"
-          title="Notifications"
+          title={t('notifications')}
           openSubmenu={openSubmenu}
           setOpenSubmenu={setOpenSubmenu}
         >
-          {['reminder', 'cancellation', 'none'].map((value) => (
+          {[
+            { value: 'reminder', label: t('reminder') },
+            { value: 'cancellation', label: t('cancellation') },
+            { value: 'none', label: t('none') },
+          ].map(({ value, label }) => (
             <div
               key={value}
               className={`filter-item capitalize ${isSelected('notificationTypes', value) ? 'selected' : ''}`}
               onClick={() => toggle('notificationTypes', value)}
             >
-              {value}
+              {label}
             </div>
           ))}
         </Submenu>
@@ -195,7 +192,7 @@ export function FilterMenu({ filters, onChange, subscriptions, hideDisabled }: P
                 })
               }
             >
-              <i className="fa-solid fa-times-circle" /> Clear
+              <i className="fa-solid fa-times-circle" /> {t('clear')}
             </div>
           </div>
         )}
@@ -224,9 +221,8 @@ function Submenu({
         {title}
       </div>
       <div
-        className="filtermenu-submenu-content"
+        className={`filtermenu-submenu-content${isOpen ? ' is-open' : ''}`}
         id={`filter-${id}`}
-        style={isOpen ? { display: 'block' } : undefined}
       >
         {children}
       </div>

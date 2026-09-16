@@ -9,13 +9,8 @@ import { SubscriptionDetails } from '../SubscriptionDetails';
 import { SubscriptionForm } from '../SubscriptionForm';
 import { showErrorMessage, showSuccessMessage } from '../Toast';
 import { useLocalStorageState } from '@/lib/browser-state';
-import {
-  applyFilters,
-  applySort,
-  EMPTY_FILTERS,
-  groupHeadingFor,
-  type Filters,
-} from '@/lib/filters';
+import { DEFAULT_SORT, DEFAULT_VIEW } from '@/lib/constants';
+import { applyFilters, applySort, EMPTY_FILTERS, groupHeadingFor, type Filters } from '@/lib/filters';
 import {
   cloneSubscription,
   deleteSubscription,
@@ -27,7 +22,7 @@ import type { SubscriptionView } from '@/lib/types';
 type View = 'grid' | 'list';
 
 export function Subscriptions() {
-  const { views, settings, subscriptions, refresh } = useAppData();
+  const { views, settings, subscriptions, t, refresh } = useAppData();
 
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
@@ -36,9 +31,10 @@ export function Subscriptions() {
   const [editing, setEditing] = useState<SubscriptionView | null>(null);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
-  // View and sort are per-device preferences upstream keeps in a cookie.
-  const [view, changeView] = useLocalStorageState<View>('wallos-subscriptions-view', 'grid');
-  const [sort, changeSort] = useLocalStorageState<string>('wallos-sort-order', 'name');
+  // View and sort are per-device preferences upstream keeps in a cookie, and it
+  // defaults to the list view ordered by next payment.
+  const [view, changeView] = useLocalStorageState<View>('wallos-subscriptions-view', DEFAULT_VIEW);
+  const [sort, changeSort] = useLocalStorageState<string>('wallos-sort-order', DEFAULT_SORT);
 
   // Auto-renewing subscriptions whose date has passed roll forward here, the
   // job the upstream nightly cron does.
@@ -58,33 +54,33 @@ export function Subscriptions() {
   }, [views, filters, search, sort, settings.hide_disabled, settings.disabled_to_bottom]);
 
   async function handleDelete(subscription: SubscriptionView) {
-    if (!window.confirm(`Delete "${subscription.name}"?`)) return;
+    if (!window.confirm(`${t('delete')} "${subscription.name}"?`)) return;
     try {
       await deleteSubscription(subscription.id);
-      showSuccessMessage('Subscription deleted');
+      showSuccessMessage(t('success'));
       refresh();
     } catch {
-      showErrorMessage('Could not delete the subscription');
+      showErrorMessage(t('error_deleting_subscription'));
     }
   }
 
   async function handleClone(subscription: SubscriptionView) {
     try {
       await cloneSubscription(subscription);
-      showSuccessMessage('Subscription cloned');
+      showSuccessMessage(t('subscription_added_successfuly'));
       refresh();
     } catch {
-      showErrorMessage('Could not clone the subscription');
+      showErrorMessage(t('error'));
     }
   }
 
   async function handleRenew(subscription: SubscriptionView) {
     try {
       await renewSubscription(subscription);
-      showSuccessMessage('Subscription renewed');
+      showSuccessMessage(t('subscription_updated_successfuly'));
       refresh();
     } catch {
-      showErrorMessage('Could not renew the subscription');
+      showErrorMessage(t('error'));
     }
   }
 
@@ -110,14 +106,14 @@ export function Subscriptions() {
         >
           <button className="button" onClick={openAdd}>
             <i className="fa-solid fa-circle-plus" />
-            New Subscription
+            {t('new_subscription')}
           </button>
 
           <div className="top-actions">
             <button
               className="button secondary-button mobile-search-toggle"
               id="mobile-search-toggle"
-              title="Search"
+              title={t('search')}
               onClick={() => setMobileSearchOpen((value) => !value)}
             >
               <i className="fa-solid fa-magnifying-glass" />
@@ -129,7 +125,7 @@ export function Subscriptions() {
                 autoComplete="off"
                 name="search"
                 id="search"
-                placeholder="Search"
+                placeholder={t('search')}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
@@ -151,7 +147,7 @@ export function Subscriptions() {
                 type="button"
                 className={`view-toggle-button${view === 'list' ? ' selected' : ''}`}
                 id="view-list-button"
-                title="List view"
+                title={t('list_view')}
                 onClick={() => changeView('list')}
               >
                 <i className="fa-solid fa-list" />
@@ -160,7 +156,7 @@ export function Subscriptions() {
                 type="button"
                 className={`view-toggle-button${view === 'grid' ? ' selected' : ''}`}
                 id="view-grid-button"
-                title="Grid view"
+                title={t('grid_view')}
                 onClick={() => changeView('grid')}
               >
                 <i className="fa-solid fa-table-cells-large" />
@@ -170,38 +166,52 @@ export function Subscriptions() {
         </header>
 
         <div className={`subscriptions${view === 'grid' ? ' grid-view' : ''}`} id="subscriptions">
-          {visible.length === 0 ? (
+          {visible.map((subscription, index) => {
+            const heading = groupHeadingFor(subscription, visible[index - 1], sort, t);
+            return (
+              <div key={subscription.id} style={{ display: 'contents' }}>
+                {heading && <div className="subscription-list-title">{heading}</div>}
+                <SubscriptionCard
+                  subscription={subscription}
+                  showProgress={settings.show_subscription_progress}
+                  showOriginalPrice={settings.show_original_price}
+                  onOpen={setSelected}
+                  onEdit={openEdit}
+                  onDelete={handleDelete}
+                  onClone={handleClone}
+                  onRenew={handleRenew}
+                />
+              </div>
+            );
+          })}
+
+          {views.length === 0 && (
             <div className="empty-page">
-              <h2>No subscriptions found</h2>
-              <p>
-                {views.length === 0
-                  ? 'Add your first subscription to start tracking your spending.'
-                  : 'No subscription matches the current search or filters.'}
-              </p>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/images/siteimages/empty.png" alt={t('empty_page')} />
+              <p>{t('no_subscriptions_yet')}</p>
               <button className="button" onClick={openAdd}>
                 <i className="fa-solid fa-circle-plus" />
-                New Subscription
+                {t('add_first_subscription')}
               </button>
             </div>
-          ) : (
-            visible.map((subscription, index) => {
-              const heading = groupHeadingFor(subscription, visible[index - 1], sort);
-              return (
-                <div key={subscription.id} style={{ display: 'contents' }}>
-                  {heading && <div className="subscription-list-title">{heading}</div>}
-                  <SubscriptionCard
-                    subscription={subscription}
-                    showProgress={settings.show_subscription_progress}
-                    showOriginalPrice={settings.show_original_price}
-                    onOpen={setSelected}
-                    onEdit={openEdit}
-                    onDelete={handleDelete}
-                    onClone={handleClone}
-                    onRenew={handleRenew}
-                  />
-                </div>
-              );
-            })
+          )}
+
+          {views.length > 0 && visible.length === 0 && (
+            <div className="empty-page">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/images/siteimages/empty.png" alt={t('empty_page')} />
+              <p>{t('no_matching_subscriptions')}</p>
+              <button
+                className="button"
+                onClick={() => {
+                  setFilters(EMPTY_FILTERS);
+                  setSearch('');
+                }}
+              >
+                {t('clear_filters')}
+              </button>
+            </div>
           )}
         </div>
       </section>

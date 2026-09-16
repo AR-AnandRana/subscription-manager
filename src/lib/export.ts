@@ -1,5 +1,6 @@
 /**
- * Subscription export, replacing endpoints/subscriptions/export.php.
+ * Subscription export, replacing endpoints/subscriptions/export.php, plus the
+ * account backup behind the admin page's Backup button.
  */
 
 import type { SubscriptionView } from './types';
@@ -33,13 +34,13 @@ function download(content: string, filename: string, mimeType: string) {
 }
 
 export function exportAsJson(subscriptions: SubscriptionView[]) {
-  download(JSON.stringify(subscriptions, null, 2), 'wallos-subscriptions.json', 'application/json');
+  download(JSON.stringify(subscriptions, null, 2), 'subscriptions.json', 'application/json');
 }
 
 /** Quote a CSV field, doubling any embedded quotes per RFC 4180. */
 function csvEscape(value: unknown): string {
   const text = value == null ? '' : String(value);
-  return `"${text.replace(/"/g, '""')}"`;
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 export function exportAsCsv(subscriptions: SubscriptionView[]) {
@@ -49,5 +50,32 @@ export function exportAsCsv(subscriptions: SubscriptionView[]) {
       CSV_COLUMNS.map((column) => csvEscape(subscription[column])).join(','),
     ),
   ];
-  download(rows.join('\r\n'), 'wallos-subscriptions.csv', 'text/csv');
+  download(rows.join('\r\n'), 'subscriptions.csv', 'text/csv');
+}
+
+/**
+ * Everything this account owns, as one JSON file.
+ *
+ * Upstream's backup zips the whole SQLite file plus the uploaded logos, which
+ * only makes sense when the app owns the database. Supabase owns it here, so
+ * this exports the account's rows and leaves full restores to the Supabase
+ * dashboard's point-in-time recovery.
+ */
+export function exportAllData(data: Record<string, unknown>) {
+  const backup = {
+    exported_at: new Date().toISOString(),
+    profile: data.profile,
+    settings: data.settings,
+    notification_settings: data.notificationSettings,
+    channels: data.channels,
+    currencies: data.currencies,
+    categories: data.categories,
+    payment_methods: data.paymentMethods,
+    household: data.household,
+    subscriptions: data.subscriptions,
+    ai_settings: data.aiSettings,
+    ai_recommendations: data.aiRecommendations,
+  };
+  const stamp = new Date().toISOString().slice(0, 10);
+  download(JSON.stringify(backup, null, 2), `wallos-backup-${stamp}.json`, 'application/json');
 }

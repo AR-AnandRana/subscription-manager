@@ -54,20 +54,29 @@ export function buildRateMap(currencies: Currency[]): Map<number, number> {
   return new Map(currencies.map((c) => [c.id, Number(c.rate)]));
 }
 
-/** Human-readable billing cycle, e.g. "Monthly" or "3 months". */
-export function getBillingCycle(cycle: number, frequency: number): string {
+/**
+ * Human-readable billing cycle, e.g. "Monthly" or "3 months".
+ *
+ * Mirrors `getBillingCycle()`: a frequency of one reads as the cycle's own name,
+ * anything else as a count of units, both translated.
+ */
+export function getBillingCycle(
+  cycle: number,
+  frequency: number,
+  t: (key: string, fallback?: string) => string = (key) => key,
+): string {
   switch (cycle) {
     case 1:
-      return frequency === 1 ? 'Daily' : `${frequency} days`;
+      return frequency === 1 ? t('Daily') : `${frequency} ${t('days')}`;
     case 2:
-      return frequency === 1 ? 'Weekly' : `${frequency} weeks`;
+      return frequency === 1 ? t('Weekly') : `${frequency} ${t('weeks')}`;
     case 3:
-      return frequency === 1 ? 'Monthly' : `${frequency} months`;
+      return frequency === 1 ? t('Monthly') : `${frequency} ${t('months')}`;
     case 4:
-      return frequency === 1 ? 'Yearly' : `${frequency} years`;
+      return frequency === 1 ? t('Yearly') : `${frequency} ${t('years')}`;
     case 5:
     default:
-      return 'One-time';
+      return t('One-time');
   }
 }
 

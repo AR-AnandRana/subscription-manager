@@ -3,25 +3,32 @@
 import { useMemo, useState } from 'react';
 import { useAppData } from '../AppDataProvider';
 import { SubscriptionDetails } from '../SubscriptionDetails';
+import { IconExportIcal } from '../Icons';
+import { showErrorMessage, showSuccessMessage } from '../Toast';
 import { getMonthOccurrences } from '@/lib/stats';
 import { convertPrice } from '@/lib/subscriptions';
 import { today } from '@/lib/dates';
 import type { SubscriptionView } from '@/lib/types';
 
-const WEEK_DAYS_SUNDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const WEEK_DAYS_MONDAY = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const WEEK_DAY_KEYS_SUNDAY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const WEEK_DAY_KEYS_MONDAY = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+const MONTH_KEYS = [
+  'month-01', 'month-02', 'month-03', 'month-04', 'month-05', 'month-06',
+  'month-07', 'month-08', 'month-09', 'month-10', 'month-11', 'month-12',
+];
 
 export function Calendar() {
-  const { views, settings, profile, formatPrice, rates } = useAppData();
+  const { views, settings, profile, formatPrice, rates, t } = useAppData();
   const now = today();
 
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
   const [selected, setSelected] = useState<SubscriptionView | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const paymentsByDay = useMemo(() => getMonthOccurrences(views, year, month), [views, year, month]);
 
-  const weekDays = settings.week_starts_sunday ? WEEK_DAYS_SUNDAY : WEEK_DAYS_MONDAY;
+  const weekDayKeys = settings.week_starts_sunday ? WEEK_DAY_KEYS_SUNDAY : WEEK_DAY_KEYS_MONDAY;
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstWeekday = new Date(year, month, 1).getDay(); // 0 = Sunday
@@ -32,6 +39,7 @@ export function Calendar() {
     let total = 0;
     let due = 0;
     const seen = new Set<number>();
+    const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
 
     for (const [day, subscriptions] of paymentsByDay.entries()) {
       for (const subscription of subscriptions) {
@@ -39,7 +47,6 @@ export function Calendar() {
         total += price;
         seen.add(subscription.id);
         // "Amount due" only counts what is still ahead in the month.
-        const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
         if (!isCurrentMonth || day >= now.getDate()) due += price;
       }
     }
@@ -55,12 +62,18 @@ export function Calendar() {
     setMonth(next.getMonth());
   }
 
-  function resetToCurrentMonth() {
-    setYear(now.getFullYear());
-    setMonth(now.getMonth());
-  }
-
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
+  const feedUrl =
+    typeof window === 'undefined' ? '' : `${window.location.origin}/api/ical?api_key=${profile.api_key}`;
+
+  async function copyFeedUrl() {
+    try {
+      await navigator.clipboard.writeText(feedUrl);
+      showSuccessMessage(t('copy_to_clipboard'));
+    } catch {
+      showErrorMessage(t('error'));
+    }
+  }
 
   // Lay the month out as whole weeks so each row is a complete calendar-row.
   const cells: (number | null)[] = [
@@ -76,65 +89,104 @@ export function Calendar() {
         <div className="split-header">
           <div className="calendar-title">
             <h2>
-              {new Date(year, month, 1).toLocaleDateString('en', { month: 'long', year: 'numeric' })}
+              {t(MONTH_KEYS[month])} {year}
             </h2>
             <div className="calendar-nav">
-              <button className="button secondary-button" id="prev" onClick={() => step(-1)} title="Previous">
+              <button
+                className="button secondary-button"
+                id="prev"
+                onClick={() => step(-1)}
+                disabled={isCurrentMonth}
+              >
                 <i className="fa-solid fa-chevron-left" />
               </button>
-              <button className="button secondary-button" id="next" onClick={() => step(1)} title="Next">
+              <button className="button secondary-button" id="next" onClick={() => step(1)}>
                 <i className="fa-solid fa-chevron-right" />
               </button>
               {!isCurrentMonth && (
-                <button className="button secondary-button" onClick={resetToCurrentMonth} title="Reset">
+                <button
+                  className="button secondary-button"
+                  onClick={() => {
+                    setYear(now.getFullYear());
+                    setMonth(now.getMonth());
+                  }}
+                  title={t('reset')}
+                >
                   <i className="fa-solid fa-calendar-day" />
                 </button>
               )}
             </div>
           </div>
+
+          <button
+            className="button secondary-button export-ical"
+            onClick={() => setExportOpen(true)}
+            title={t('export_icalendar')}
+            aria-label={t('export_icalendar')}
+          >
+            <IconExportIcal />
+          </button>
+
+          <div
+            id="subscriptions_calendar"
+            className={`subscription-modal${exportOpen ? ' is-open' : ''}`}
+          >
+            <div className="modal-header">
+              <h3>{t('export_icalendar')}</h3>
+              <span className="fa-solid fa-xmark close-modal" onClick={() => setExportOpen(false)} />
+            </div>
+            <div className="form-group-inline">
+              <input id="iCalendarUrl" type="text" value={feedUrl} readOnly />
+              <button onClick={copyFeedUrl} className="button tiny">
+                {t('copy_to_clipboard')}
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="calendar">
-          <div className="calendar-header">
-            {weekDays.map((weekDay) => (
-              <div className="calendar-cell" key={weekDay}>
-                {weekDay}
-              </div>
-            ))}
-          </div>
+        <div>
+          <div className="calendar">
+            <div className="calendar-header">
+              {weekDayKeys.map((key) => (
+                <div className="calendar-cell" key={key}>
+                  {t(key)}
+                </div>
+              ))}
+            </div>
 
-          <div className="calendar-body">
-            {weeks.map((week, weekIndex) => (
-              <div className="week calendar-row" key={weekIndex}>
-                {week.map((day, dayIndex) => {
-                  if (day === null) return <div className="calendar-cell empty" key={dayIndex} />;
+            <div className="calendar-body">
+              {weeks.map((week, weekIndex) => (
+                <div className="week calendar-row" key={weekIndex}>
+                  {week.map((day, dayIndex) => {
+                    if (day === null) return <div className="calendar-cell empty" key={dayIndex} />;
 
-                  const isToday =
-                    day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
-                  const payments = paymentsByDay.get(day);
+                    const isToday =
+                      day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
+                    const payments = paymentsByDay.get(day);
 
-                  return (
-                    <div className={`calendar-cell${isToday ? ' today' : ''}`} key={dayIndex}>
-                      <span className="day">{day}</span>
-                      {payments && payments.length > 0 && (
-                        <div className="calendar-cell-content">
-                          {payments.map((payment) => (
-                            <div
-                              className="calendar-event"
-                              key={`${payment.id}-${day}`}
-                              title={payment.name}
-                              onClick={() => setSelected(payment)}
-                            >
-                              {payment.name}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+                    return (
+                      <div className={`calendar-cell${isToday ? ' today' : ''}`} key={dayIndex}>
+                        <span className="day">{day}</span>
+                        {payments && payments.length > 0 && (
+                          <div className="calendar-cell-content">
+                            {payments.map((payment) => (
+                              <div
+                                className="calendar-event"
+                                key={`${payment.id}-${day}`}
+                                title={payment.name}
+                                onClick={() => setSelected(payment)}
+                              >
+                                {payment.name}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -142,27 +194,27 @@ export function Calendar() {
           <div className="over-budget">
             <i className="fa-solid fa-triangle-exclamation" />
             <span>
-              This month exceeds your budget <strong>({formatPrice(overBudget)})</strong>
+              {t('over_budget_warning')} <strong>({formatPrice(overBudget)})</strong>
             </span>
           </div>
         )}
 
         <div className="calendar-monthly-stats">
           <div className="calendar-monthly-stats-header">
-            <h3>Statistics</h3>
+            <h3>{t('stats')}</h3>
           </div>
           <div className="statistics">
             <div className="statistic">
               <span>{subscriptionsToPay}</span>
-              <div className="title">Active Subscriptions</div>
+              <div className="title">{t('active_subscriptions')}</div>
             </div>
             <div className="statistic">
               <span>{formatPrice(totalCostThisMonth)}</span>
-              <div className="title">Total Cost</div>
+              <div className="title">{t('total_cost')}</div>
             </div>
             <div className="statistic">
               <span>{formatPrice(amountDueThisMonth)}</span>
-              <div className="title">Amount due this month</div>
+              <div className="title">{t('amount_due')}</div>
             </div>
           </div>
         </div>

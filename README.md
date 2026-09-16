@@ -32,6 +32,28 @@ Or apply them individually:
 | `supabase/migrations/0002_rls.sql` | Row level security on every table |
 | `supabase/migrations/0003_seed_new_user.sql` | Per-account seed data + trigger |
 | `supabase/migrations/0004_storage.sql` | `logos` and `avatars` buckets |
+| `supabase/migrations/0005_admin.sql` | SMTP, OIDC and security settings, plus the admin functions |
+
+### Optional: the service role key
+
+Two things need more than a signed-in user's rights: creating an account from
+the Admin page, and the maintenance jobs that run across every account. Set
+`SUPABASE_SERVICE_ROLE_KEY` (Project Settings → API) in the **server**
+environment — Netlify → Environment variables, or `.env.local` locally.
+
+Never prefix it `NEXT_PUBLIC_`. That key bypasses row level security entirely,
+so it must never reach the browser. Everything else works without it.
+
+### If the Admin tab is missing
+
+The first account to register becomes the admin. If an install somehow ends up
+with no admin — the first account was deleted, or accounts predate the trigger —
+the app promotes the earliest remaining account on next load. To hand admin to a
+specific account instead, run this in the SQL editor:
+
+```sql
+update public.profiles set is_admin = true where email = 'you@example.com';
+```
 
 With the CLI:
 

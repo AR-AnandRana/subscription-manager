@@ -19,7 +19,7 @@ import {
 } from './Icons';
 
 export function Header() {
-  const { profile, settings } = useAppData();
+  const { profile, settings, t } = useAppData();
   const pathname = usePathname();
   const router = useRouter();
   // Storing the route the menu was opened on, rather than a plain boolean,
@@ -45,6 +45,8 @@ export function Header() {
   }
 
   const hideOnMobile = settings.mobile_nav ? 'mobileNavigationHideOnMobile' : '';
+  const avatar = profile.avatar ?? 'images/avatars/0.svg';
+  const avatarSrc = avatar.startsWith('http') ? avatar : `/${avatar}`;
 
   return (
     <>
@@ -61,7 +63,7 @@ export function Header() {
             <div className={`dropdown${open ? ' is-open' : ''}`} ref={dropdownRef}>
               <button className="dropbtn" onClick={() => setOpenedOn(open ? null : pathname)}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/${profile.avatar ?? 'images/avatars/0.svg'}`} alt="me" id="avatar" />
+                <img src={avatarSrc} alt="me" id="avatar" />
                 <span id="user" className={hideOnMobile}>
                   {profile.username}
                 </span>
@@ -69,37 +71,37 @@ export function Header() {
               <div className="dropdown-content">
                 <Link href="/" className={hideOnMobile}>
                   <IconMobileMenuHome />
-                  Dashboard
+                  {t('dashboard')}
                 </Link>
                 <Link href="/subscriptions" className={hideOnMobile}>
                   <IconMobileMenuSubscriptions />
-                  Subscriptions
+                  {t('subscriptions')}
                 </Link>
                 <Link href="/calendar" className={hideOnMobile}>
                   <IconMobileMenuCalendar />
-                  Calendar
+                  {t('calendar')}
                 </Link>
                 <Link href="/stats" className={hideOnMobile}>
                   <IconMobileMenuStatistics />
-                  Statistics
+                  {t('stats')}
                 </Link>
                 <Link href="/settings" className={hideOnMobile}>
                   <IconMobileMenuSettings />
-                  Settings
+                  {t('settings')}
                 </Link>
                 <Link href="/profile">
                   <IconMobileMenuProfile />
-                  Profile
+                  {t('profile')}
                 </Link>
                 {profile.is_admin && (
                   <Link href="/admin">
                     <IconMobileMenuAdmin />
-                    Admin
+                    {t('admin')}
                   </Link>
                 )}
                 <Link href="/about">
                   <IconMobileMenuAbout />
-                  About
+                  {t('about')}
                 </Link>
                 <a
                   href="/login"
@@ -109,7 +111,7 @@ export function Header() {
                   }}
                 >
                   <IconMobileMenuLogout />
-                  Logout
+                  {t('logout')}
                 </a>
               </div>
             </div>
@@ -123,25 +125,26 @@ export function Header() {
 }
 
 const MOBILE_LINKS = [
-  { href: '/', label: 'Dashboard', Icon: IconMobileMenuHome },
-  { href: '/subscriptions', label: 'Subscriptions', Icon: IconMobileMenuSubscriptions },
-  { href: '/calendar', label: 'Calendar', Icon: IconMobileMenuCalendar },
-  { href: '/stats', label: 'Statistics', Icon: IconMobileMenuStatistics },
-  { href: '/settings', label: 'Settings', Icon: IconMobileMenuSettings },
+  { href: '/', labelKey: 'dashboard', Icon: IconMobileMenuHome },
+  { href: '/subscriptions', labelKey: 'subscriptions', Icon: IconMobileMenuSubscriptions },
+  { href: '/calendar', labelKey: 'calendar', Icon: IconMobileMenuCalendar },
+  { href: '/stats', labelKey: 'stats', Icon: IconMobileMenuStatistics },
+  { href: '/settings', labelKey: 'settings', Icon: IconMobileMenuSettings },
 ];
 
 function MobileNav({ pathname }: { pathname: string }) {
+  const { t } = useAppData();
   return (
     <nav className="mobile-nav">
-      {MOBILE_LINKS.map(({ href, label, Icon }) => (
+      {MOBILE_LINKS.map(({ href, labelKey, Icon }) => (
         <Link
           key={href}
           href={href}
           className={`nav-link${pathname === href ? ' active' : ''}`}
-          title={label}
+          title={t(labelKey)}
         >
           <Icon />
-          {label}
+          {t(labelKey)}
         </Link>
       ))}
     </nav>

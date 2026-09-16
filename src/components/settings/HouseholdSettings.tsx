@@ -1,12 +1,18 @@
 'use client';
 
-import { useDraftList } from '@/lib/browser-state';
 import { useAppData } from '../AppDataProvider';
+import { useDraftList } from '@/lib/browser-state';
 import { showErrorMessage, showSuccessMessage } from '../Toast';
 import { countSubscriptionsUsing, deleteRow, insertOwned, updateRow } from '@/lib/settings-actions';
 
+/**
+ * Household members, from settings.php.
+ *
+ * The first member is the account holder: they have no separate email field and
+ * cannot be deleted, matching upstream's treatment of index 0.
+ */
 export function HouseholdSettings() {
-  const { household, refresh } = useAppData();
+  const { household, t, refresh } = useAppData();
   const [drafts, setDrafts] = useDraftList(household);
 
   function edit(id: number, field: 'name' | 'email', value: string) {
@@ -20,88 +26,102 @@ export function HouseholdSettings() {
     if (!member) return;
     try {
       await updateRow('household', id, { name: member.name, email: member.email });
-      showSuccessMessage('Member saved');
+      showSuccessMessage(t('member_saved'));
       refresh();
     } catch {
-      showErrorMessage('Could not save the member');
+      showErrorMessage(t('failed_edit_household'));
     }
   }
 
   async function remove(id: number) {
-    // Deleting a member that still pays for something would orphan those
-    // subscriptions, so upstream refuses and so do we.
     const inUse = await countSubscriptionsUsing('payer_user_id', id);
     if (inUse > 0) {
-      showErrorMessage('This member still pays for subscriptions and cannot be deleted');
+      showErrorMessage(t('household_in_use'));
       return;
     }
     try {
       await deleteRow('household', id);
-      showSuccessMessage('Member deleted');
+      showSuccessMessage(t('member_removed'));
       refresh();
     } catch {
-      showErrorMessage('Could not delete the member');
+      showErrorMessage(t('failed_remove_household'));
     }
   }
 
   async function add() {
     try {
-      await insertOwned('household', { name: 'New member', email: '' });
+      await insertOwned('household', { name: t('member'), email: '' });
       refresh();
     } catch {
-      showErrorMessage('Could not add the member');
+      showErrorMessage(t('failed_add_household'));
     }
   }
 
   return (
     <section className="account-section">
       <header>
-        <h2>Household</h2>
+        <h2>{t('household')}</h2>
       </header>
-      <div id="householdMembers">
-        {drafts.map((member, index) => (
-          <div className="form-group-inline" data-memberid={member.id} key={member.id}>
-            <input
-              type="text"
-              name="member"
-              autoComplete="off"
-              value={member.name}
-              onChange={(event) => edit(member.id, 'name', event.target.value)}
-              placeholder="Member"
-            />
-            {index !== 0 && (
+      <div className="account-members">
+        <div id="householdMembers">
+          {drafts.map((member, index) => (
+            <div className="form-group-inline" data-memberid={member.id} key={member.id}>
               <input
                 type="text"
-                name="email"
+                name="member"
                 autoComplete="off"
-                value={member.email}
-                onChange={(event) => edit(member.id, 'email', event.target.value)}
-                placeholder="Email"
+                value={member.name}
+                placeholder="Member"
+                onChange={(event) => edit(member.id, 'name', event.target.value)}
               />
-            )}
-            <button className="image-button medium" onClick={() => save(member.id)} title="Save member">
-              <i className="fa-solid fa-check" />
-            </button>
-            {index !== 0 ? (
-              <button className="image-button medium" onClick={() => remove(member.id)} title="Delete member">
-                <i className="fa-solid fa-trash-can" />
+              {index !== 0 && (
+                <input
+                  type="text"
+                  name="email"
+                  autoComplete="off"
+                  value={member.email}
+                  placeholder={t('email')}
+                  onChange={(event) => edit(member.id, 'email', event.target.value)}
+                />
+              )}
+              <button
+                className="image-button medium"
+                onClick={() => save(member.id)}
+                name="save"
+                title={t('save_member')}
+              >
+                <i className="fa-solid fa-check" />
               </button>
-            ) : (
-              <button className="image-button medium disabled" title="The account holder cannot be deleted">
-                <i className="fa-solid fa-trash-can" />
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-      <div className="buttons">
-        <input type="submit" value="Add" id="addMember" onClick={add} className="thin mobile-grow" />
-      </div>
-      <div className="settings-notes">
-        <p>
-          <i className="fa-solid fa-circle-info" /> Household members let you record who pays for each
-          subscription and split the statistics by person.
-        </p>
+              {index !== 0 ? (
+                <button
+                  className="image-button medium"
+                  onClick={() => remove(member.id)}
+                  title={t('delete_member')}
+                >
+                  <i className="fa-solid fa-trash-can" />
+                </button>
+              ) : (
+                <button className="image-button medium disabled" title={t('cant_delete_member')}>
+                  <i className="fa-solid fa-trash-can" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="buttons">
+          <input
+            type="submit"
+            value={t('add')}
+            id="addMember"
+            onClick={add}
+            className="thin mobile-grow"
+          />
+        </div>
+        <div className="settings-notes">
+          <p>
+            <i className="fa-solid fa-circle-info" /> {t('household_info')}
+          </p>
+        </div>
       </div>
     </section>
   );
